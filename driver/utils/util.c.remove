@@ -1,0 +1,250 @@
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+  This program can be distributed under the terms of the GNU GPL.
+  See the file COPYING.
+  gcc -Wall meme.c `pkg-config fuse --cflags --libs` -o meme
+*/
+
+#define DIR_COUNT 224
+
+#include <fuse.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <dirent.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+
+static char *devfile = NULL;
+
+typedef struct file
+{
+    uint16_t typePerm[2];
+    uint16_t *loc[2];
+    uint16_t *name[11];
+    uint16_t *time[8];
+    uint16_t *size[4];
+    uint16_t *owner[2];
+    uint16_t *group[2];
+} f_type;
+
+unsigned int LitToBig(unsigned int x)
+{
+    return (((x >> 24) & 0x000000ff) | ((x >> 8) & 0x0000ff00) | ((x << 8) & 0x00ff0000) | ((x << 24) & 0xff000000));
+}
+
+// function to convert Hexadecimal to Binary Number
+void HexToBin(char *hexdec)
+{
+
+    long int i = 0;
+
+    while (hexdec[i])
+    {
+
+        switch (hexdec[i])
+        {
+        case '0':
+            printf("0000");
+            break;
+        case '1':
+            printf("0001");
+            break;
+        case '2':
+            printf("0010");
+            break;
+        case '3':
+            printf("0011");
+            break;
+        case '4':
+            printf("0100");
+            break;
+        case '5':
+            printf("0101");
+            break;
+        case '6':
+            printf("0110");
+            break;
+        case '7':
+            printf("0111");
+            break;
+        case '8':
+            printf("1000");
+            break;
+        case '9':
+            printf("1001");
+            break;
+        case 'A':
+        case 'a':
+            printf("1010");
+            break;
+        case 'B':
+        case 'b':
+            printf("1011");
+            break;
+        case 'C':
+        case 'c':
+            printf("1100");
+            break;
+        case 'D':
+        case 'd':
+            printf("1101");
+            break;
+        case 'E':
+        case 'e':
+            printf("1110");
+            break;
+        case 'F':
+        case 'f':
+            printf("1111");
+            break;
+        default:
+            printf("\nInvalid hexadecimal digit %c",
+                   hexdec[i]);
+        }
+        i++;
+    }
+}
+
+int bcd_to_dec(unsigned char x){
+    return x-6*(x>>4);
+}
+
+static int meme_readdir()
+{
+    char* path = "/TEST.TXT";
+   
+    //FILE variables fp
+	FILE *fp;
+
+    //open file for reading
+    fp = fopen("../../MEMEformats/two-files.meme", "rb+");
+
+	//buffer variables
+	uint8_t buffer[32];
+	uint8_t fname[8];
+	uint8_t fext[3];
+    uint8_t FATbuf[2];
+	uint8_t fSize[4];
+	uint8_t loc[2];
+	size_t flag = 0;
+    size_t sumLoc = 0;
+    size_t sumBlk = 0;
+    size_t size = 0;
+	char *nameBuf = malloc(12);
+
+	//loop through directory entries
+	for (size_t i = 0; i < DIR_COUNT; i++)
+	{
+		fseek(fp, 122880 + sizeof(buffer) * i, SEEK_SET);
+		fread(buffer, 32, 1, fp);
+		//if entry is valid
+
+		if (buffer[0] != 0x00 && buffer[1] != 0x00)
+		{
+			//copy name to nameBuf
+			int j = 4;
+			int h = 0;
+			while (buffer[j] != 0x00 && j < 0x0F)
+			{
+				h += sprintf(&fname[h], "%c", buffer[j]);
+				j++;
+			}
+			strcpy(nameBuf,fname);
+			//capture extension
+			j = 12;
+			h = 0;
+			while (j < 0x0F)
+			{
+		        h += sprintf(&fext[h], "%c", buffer[j]);
+				j++;
+			}
+			strcat(nameBuf,".");
+			strcat(nameBuf,fext);
+
+            
+
+			//if path matches file name/extension set flag
+			if (strcmp(path + 1, nameBuf) == 0) {
+                //mark dir entry as not used
+                j=0;
+                while(j<0x02){
+                    printf("%x\n",buffer[j]);
+                    buffer[j] = 0x00;
+                    j++;
+                }
+
+                //access initial location of FAT
+				j = 2;
+				h = 0;
+				while (j < 0x04)
+				{
+					h += sprintf(&loc[h], "%c", buffer[j]);
+					j++;
+				}
+
+
+                //open file for writing and overwrite current Directory entry
+		        fseek(fp, 122880 + sizeof(buffer) * i, SEEK_SET);
+                fwrite(buffer, sizeof(char), sizeof(buffer), fp);
+
+				//calculate sum of hex digits
+				sumLoc = (int)loc[0]*256+(int)loc[1];
+
+                //collect size of dir entry for bufBuf allocation
+				flag = 1;
+				j = 0x18;
+				h = 0;
+				while (j < 0x1C)
+				{
+					sprintf(&fSize[h], "%c", buffer[j]);
+					h++;
+					j++;
+				}
+				//calculate size and allocate bufBuf
+				size = 0;
+				size+=(int)fSize[0]*0x1000000;
+				size+=(int)fSize[1]*0x10000;
+				size+=(int)fSize[2]*0x100;
+				size += (int)fSize[3];
+				//while FAT entries contain next address
+                uint8_t zero[2];
+                zero[0] = 0x00; zero[1] = 0x00;
+
+				while(sumBlk != 0xFFFF){
+					//search for next FAT value 
+					fseek(fp, 130048 + (sumLoc)*2, SEEK_SET);
+					fread(FATbuf, sizeof(uint8_t)*2, 1, fp);
+                    printf("before write: %d\n",sumLoc);
+					fseek(fp, 130048 + (sumLoc)*2, SEEK_SET);
+                    fwrite(zero, sizeof(uint8_t)*2, 1, fp);
+					sumBlk = (int)FATbuf[0]*256+(int)FATbuf[1];
+					sumLoc = sumBlk;
+				}
+				break;
+			}
+		}
+	}
+
+	close(fp);
+
+	//if file doesn't exist return error
+	if (flag == 0){
+		free(nameBuf);
+		return -ENOENT;
+	}
+	//else return 0 
+	free(nameBuf);
+	return 0;
+}
+
+int main(int argc, char *argv[])
+{
+    int i;
+
+    meme_readdir();
+    return 0;
+}

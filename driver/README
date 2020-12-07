@@ -1,0 +1,8 @@
+Hello, This is the project 4 driver readme
+
+How to run the driver:
+[1] -> enter the [make] command
+[2] -> enter the run command with the following format (  ./run -s -f [image path] [mounting dir path]  )
+	example run command... [  ./run -s -f ../MEMEformats/two-files.meme ./testDir  ]
+
+**The utils directory was used to test/build FUSE function implementations***

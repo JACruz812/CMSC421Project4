@@ -1,0 +1,15 @@
+Tony Cruz, Project 4 CMSC421
+part1: build the initial framework of MEMEfs FUSE driver
+	- getattr, readdir, open, read funcs
+	- format initial MEMEfs images
+
+In this section of the project we had to work on initializing our FUSE filesystem. Some difficulties I encountered were finding resources for FUSE syntax and conceptually being able to abstract the filesystem. Without any framework at first aside from the hello example it was hard to decide where to start. I began with the development of readdir so i could print out the file names. Then i completed readattr so that i could analyze file attributes and begin traversing directory values. Next i implemented the open func which was pretty simple after completing the prior two. I had the most difficulty with read because the offsets of the FAT and user data don't line up perfectly, there is a slight offset since the first two entries of the FAT aren't used.
+****Please look at readme in driver directory for driver run instructions****
+
+
+***part2 update***
+In part two of this filesystem I attempted to create a write section of my FUSE filesystem implementation. Initially i began my fine tuning my implementation of read. I ended up getting hung up on how to write to the image file and found using the status "r+" in open allows for writing and reading. Once i got past this hurdle I was able to implement rename, write(in util), remove(unlink), destroy, init, and link. Although, I was not able to fully implement the write function i was able to get it to work in util with hard inputs in the C code. I'm sorry i was not able to complete this portion of this project all the way and I hope my grade doesn't suffer too much. Although I think the project turned out pretty well and I hope you enjoy grading it.
+
+
+Much Thanks,
+Tony Cruz
